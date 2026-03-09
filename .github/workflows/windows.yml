@@ -10,35 +10,38 @@ jobs:
       - name: Configurando RDP e Usuário
         shell: pwsh
         run: |
-          # Habilita o RDP
+          # Habilita o RDP no Windows
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
           
-          # Define a senha do administrador
-          net user runneradmin "SenhaSegura123!"
+          # Cria o usuário 'runnes' com sua senha e adiciona como administrador
+          net user runnes "shalom3235@" /add
+          net localgroup administrators runnes /add
 
       - name: Baixando Cloudflare
         shell: pwsh
         run: |
           curl.exe -L --output cloudflared.exe https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe
 
-      - name: Iniciando Túnel Aleatório
+      - name: Iniciando Tunel Aleatorio
         shell: pwsh
         run: |
-          Write-Host "Gerando link aleatório... Aguarde 10 segundos."
-          
-          # Inicia o túnel e joga o log para um arquivo para pegarmos o link
+          # Inicia o túnel e grava a saída em um arquivo de log
           Start-Process ./cloudflared.exe -ArgumentList "tunnel --url tcp://localhost:3389" -RedirectStandardError "tunnel.log"
           
-          # Aguarda o túnel estabilizar
-          Start-Sleep -Seconds 15
+          # Aguarda o túnel conectar
+          Write-Host "Aguardando o túnel Cloudflare subir..."
+          Start-Sleep -Seconds 20
           
-          # Procura o link aleatório no log e exibe no console do GitHub
-          $link = Get-Content tunnel.log | Select-String "trycloudflare.com"
+          # Extrai o link do log
+          $log = Get-Content tunnel.log -Raw
+          $link = ($log | Select-String -Pattern "https://.*trycloudflare.com").Matches.Value
+          
           Write-Host "--------------------------------------------------------"
-          Write-Host "CONECTE-SE USANDO O COMANDO ABAIXO NO SEU PC:"
+          Write-Host "LINK PARA USAR NO SEU PC:"
           Write-Host "cloudflared access rdp --hostname $link --url localhost:3389"
           Write-Host "--------------------------------------------------------"
+          Write-Host "Aguardando 6 horas para manter a sessão ativa..."
           
-          # Mantém vivo
+          # Mantém vivo por 6 horas
           Start-Sleep -Seconds 21600
