@@ -1,23 +1,15 @@
-name: WindowsNativoGratis
+name: Cloudflare Tunnel RDP
 on: workflow_dispatch
 
 jobs:
   build:
     runs-on: windows-latest
     steps:
-      - name: Configurar Senha e RDP
+      - name: Baixar Cloudflared
         run: |
-          # Define a senha do usuário padrão do GitHub
-          net user runneradmin SenhaForte123!
-          # Libera o acesso remoto no firewall e no sistema
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
-          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-          
-      - name: Gerar Link Aleatorio Cloudflare
-        shell: pwsh
+          Invoke-WebRequest -Uri "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" -OutFile "cloudflared.exe"
+
+      - name: Iniciar Túnel RDP
         run: |
-          # Baixa o executável direto (mais rápido e sem erro de instalação)
-          Invoke-WebRequest -Uri "https://github.com" -OutFile "cf.exe"
-          
-          # Este comando CRIA o link aleatório .trycloudflare.com nos logs
-          .\cf.exe tunnel --url tcp://localhost:3389
+          # O túnel vai gerar o link no log do GitHub
+          .\cloudflared.exe tunnel --url tcp://localhost:3389
