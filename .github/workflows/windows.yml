@@ -5,20 +5,19 @@ jobs:
   build:
     runs-on: windows-latest
     steps:
-      - name: Configurar Acesso
+      - name: Configurar Senha e RDP
         run: |
+          # Define a senha do usuário padrão do GitHub
           net user runneradmin SenhaForte123!
+          # Libera o acesso remoto no firewall e no sistema
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
           
-      - name: Gerar Link Aleatório Cloudflare
+      - name: Gerar Link Aleatorio Cloudflare
         shell: pwsh
         run: |
-          # Baixando de forma mais segura com PowerShell
-          Invoke-WebRequest -Uri "https://github.com" -OutFile "cloudflared.msi"
+          # Baixa o executável direto (mais rápido e sem erro de instalação)
+          Invoke-WebRequest -Uri "https://github.com" -OutFile "cf.exe"
           
-          # Instalando o MSI silenciosamente (isso evita o erro de 'not a valid application')
-          Start-Process msiexec.exe -ArgumentList "/i cloudflared.msi /quiet /norestart" -Wait
-          
-          # Iniciando o túnel usando o comando instalado no sistema
-          & "C:\Program Files (x86)\cloudflared\cloudflared.exe" tunnel --url tcp://localhost:3389
+          # Este comando CRIA o link aleatório .trycloudflare.com nos logs
+          .\cf.exe tunnel --url tcp://localhost:3389
