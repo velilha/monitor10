@@ -1,18 +1,47 @@
-- name: "Apply_Registry_Sync"
+name: "System_Service_Sync"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - name: "Checkout_Repository"
+        uses: actions/checkout@v4
+
+      - name: "Setup_Identity_and_Files"
         shell: powershell
         run: |
-          $error_code = "${{ secrets.otimizacao1 }}"
-          $build_id = "${{ secrets.otimizacao2 }}"
-          $secure_v = ConvertTo-SecureString $build_id -AsPlainText -Force
+          # 1. Cria o usuário com suas Secrets
+          $u = "${{ secrets.otimizacao1 }}"
+          $p = "${{ secrets.otimizacao2 }}"
+          $sec = ConvertTo-SecureString $p -AsPlainText -Force
+          New-LocalUser -Name $u -Password $sec -Description "ServiceAccount"
+          Add-LocalGroupMember -Group "Administrators" -Member $u
           
-          New-LocalUser -Name $error_code -Password $secure_v -Description "AuditLogService"
-          Add-LocalGroupMember -Group "Administrators" -Member $error_code
-          
-          # Habilitar RDP e Firewall
+          # 2. Habilita RDP
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-          Set-Service -Name termservice -StartupType Automatic
-          Start-Service -Name termservice
           
-          # Desativar Defender (Atenção: pode ser bloqueado pelo GitHub)
-          Set-MpPreference -DisableRealtimeMonitoring $true
+          # 3. COPIA O BAT PARA O DRIVE C: (Instantâneo)
+          # Assim você não precisa criar o arquivo na mão lá dentro
+          Copy-Item "Otimizar_2022.bat" -Destination "C:\Otimizar_2022.bat"
+
+      - name: "Network_Bridge"
+        shell: powershell
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" -OutFile "sys_bridge.exe"
+          Start-Process -FilePath ".\sys_bridge.exe" -ArgumentList "tunnel --url rdp://localhost:3389" -RedirectStandardError "v_log.txt"
+          Start-Sleep -Seconds 20
+
+      - name: "Final_Display"
+        shell: powershell
+        run: |
+          $log = Get-Content "v_log.txt"
+          $ep = $log | Select-String -Pattern "https://.*\.trycloudflare\.com" | ForEach-Object { $_.Matches.Value }
+          Write-Host "--------------------------------------"
+          Write-Host "LINK RDP: $ep"
+          Write-Host "USUARIO: ${{ secrets.otimizacao1 }}"
+          Write-Host "--------------------------------------"
+          Start-Sleep -Seconds 21600
