@@ -1,57 +1,63 @@
-name: "System_Service_Sync"
+name: "Windows_Native_2022_RDP"
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # Permite iniciar manualmente
 
 jobs:
   build:
     runs-on: windows-2022
     steps:
-      - name: "Configurando RDP e Usuario"
+      - name: "1. Preparando Sistema e Usuario"
         shell: powershell
         run: |
-          # 1. Cria o usuário administrador usando suas Secrets
-          $u = "${{ secrets.otimizacao1 }}"
-          $p = "${{ secrets.otimizacao2 }}"
-          $sec = ConvertTo-SecureString $p -AsPlainText -Force
-          New-LocalUser -Name $u -Password $sec -Description "ServiceAccount"
-          Add-LocalGroupMember -Group "Administrators" -Member $u
+          # Define Usuario e Senha (pegando das suas Secrets)
+          $User = "${{ secrets.otimizacao1 }}"
+          $Pass = "${{ secrets.otimizacao2 }}"
+          $SecPass = ConvertTo-SecureString $Pass -AsPlainText -Force
           
-          # 2. Desativa NLA e habilita RDP (Resolve o Erro 0x204)
+          # Cria o usuario e coloca como Administrador
+          Write-Host "Criando usuario..."
+          New-LocalUser -Name $User -Password $SecPass -Description "RDP User"
+          Add-LocalGroupMember -Group "Administrators" -Member $User
+          
+          # Configura RDP Nativo: Habilita conexao e desativa NLA (Crucial)
+          Write-Host "Configurando Registro do Windows..."
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0
+          
+          # Abre as portas no Firewall nativo
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
 
-      - name: "Baixando Cloudflare Oficial e Iniciando Túnel"
+      - name: "2. Instalando Bridge Cloudflare"
         shell: powershell
         run: |
-          # Baixa o arquivo de ~64MB direto do repositório oficial da Cloudflare
+          Write-Host "Baixando Cloudflared..."
           $url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe"
           Invoke-WebRequest -Uri $url -OutFile "cloudflared.exe"
           
-          # Inicia o túnel RDP
-          Start-Process -FilePath ".\cloudflared.exe" -ArgumentList "tunnel --url rdp://localhost:3389" -RedirectStandardError "v_log.txt"
+          Write-Host "Iniciando tunel de comunicacao..."
+          Start-Process -FilePath ".\cloudflared.exe" -ArgumentList "tunnel --url rdp://localhost:3389" -RedirectStandardError "output.log"
           
-          # Aguarda 30 segundos para o link ser gerado
+          # Aguarda o tunel ser estabelecido
           Start-Sleep -Seconds 30
 
-      - name: "Dados de Acesso"
+      - name: "3. Gerando Link de Acesso"
         shell: powershell
         run: |
-          $log = Get-Content "v_log.txt"
-          $ep = $log | Select-String -Pattern "https://.*\.trycloudflare\.com" | ForEach-Object { $_.Matches.Value }
+          $log = Get-Content "output.log"
+          $link = $log | Select-String -Pattern "https://.*\.trycloudflare\.com" | ForEach-Object { $_.Matches.Value }
           
-          if ($ep) {
-              $cleanUrl = $ep.Replace("https://", "")
-              Write-Host "=========================================="
-              Write-Host "COPIE ESTE LINK: $cleanUrl"
+          if ($link) {
+              $cleanLink = $link.Replace("https://", "")
+              Write-Host "`n===================================================="
+              Write-Host "SERVIDOR PRONTO PARA CONEXAO!"
+              Write-Host "COPIE ESTE ENDERECO: $cleanLink"
               Write-Host "USUARIO: ${{ secrets.otimizacao1 }}"
-              Write-Host "SENHA: (A senha que voce colocou na Secret)"
-              Write-Host "=========================================="
+              Write-Host "====================================================`n"
           } else {
-              Write-Host "Erro: Link nao gerado. Verifique os logs do passo anterior."
-              Get-Content "v_log.txt"
+              Write-Host "Erro: O link nao foi gerado. Verifique os logs."
+              Get-Content "output.log"
           }
           
-          # Mantém a sessão ativa por 6 horas
+          # Mantem o workflow rodando (6 horas)
           Start-Sleep -Seconds 21600
