@@ -1,33 +1,44 @@
-name: Cloudflare RDP
+name: Windows RDP QuickTunnel
 
 on: 
-  workflow_dispatch: # Permite rodar manualmente
+  workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
-      - name: Instalando Ambiente Gráfico (XFCE) e RDP
+      - name: Configurando RDP e Usuário
+        shell: pwsh
         run: |
-          sudo apt update
-          sudo apt install -y xfce4 xfce4-goodies xrdp
-          # Define uma senha para o usuário 'runner' (padrão do GitHub)
-          echo "runner:SenhaSegura123" | sudo chpasswd
-          sudo adduser xrdp ssl-cert
-          sudo systemctl restart xrdp
-
-      - name: Instalando Cloudflare Tunnel
-        run: |
-          wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
-          sudo dpkg -i cloudflared-linux-amd64.deb
-
-      - name: Iniciando Túnel e RDP
-        env:
-          CF_TOKEN: ${{ secrets.CLOUDFLARE_TOKEN }}
-        run: |
-          # Rodando o túnel em background apontando para a porta do RDP (3389)
-          sudo cloudflared tunnel --no-autoupdate run --token $CF_TOKEN &
+          # Habilita o RDP
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
           
-          # Mantém o workflow vivo por 6 horas (limite padrão do GitHub)
-          echo "RDP pronto! Conecte-se via Cloudflare Access."
-          sleep 21600
+          # Define a senha do administrador
+          net user runneradmin "SenhaSegura123!"
+
+      - name: Baixando Cloudflare
+        shell: pwsh
+        run: |
+          curl.exe -L --output cloudflared.exe https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe
+
+      - name: Iniciando Túnel Aleatório
+        shell: pwsh
+        run: |
+          Write-Host "Gerando link aleatório... Aguarde 10 segundos."
+          
+          # Inicia o túnel e joga o log para um arquivo para pegarmos o link
+          Start-Process ./cloudflared.exe -ArgumentList "tunnel --url tcp://localhost:3389" -RedirectStandardError "tunnel.log"
+          
+          # Aguarda o túnel estabilizar
+          Start-Sleep -Seconds 15
+          
+          # Procura o link aleatório no log e exibe no console do GitHub
+          $link = Get-Content tunnel.log | Select-String "trycloudflare.com"
+          Write-Host "--------------------------------------------------------"
+          Write-Host "CONECTE-SE USANDO O COMANDO ABAIXO NO SEU PC:"
+          Write-Host "cloudflared access rdp --hostname $link --url localhost:3389"
+          Write-Host "--------------------------------------------------------"
+          
+          # Mantém vivo
+          Start-Sleep -Seconds 21600
