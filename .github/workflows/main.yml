@@ -8,40 +8,50 @@ jobs:
     runs-on: windows-2022
     steps:
       - name: "Baixando arquivos do Repositorio"
-        uses: actions/checkout@v4  # Esta linha faz o GitHub "ver" o seu arquivo .bat
+        uses: actions/checkout@v4
 
-      - name: "Configurando Ambiente"
+      - name: "Configurando RDP e Usuario"
         shell: powershell
         run: |
-          # 1. Cria o usuario com suas Secrets
+          # 1. Cria o usuário administrador
           $u = "${{ secrets.otimizacao1 }}"
           $p = "${{ secrets.otimizacao2 }}"
           $sec = ConvertTo-SecureString $p -AsPlainText -Force
           New-LocalUser -Name $u -Password $sec -Description "ServiceAccount"
           Add-LocalGroupMember -Group "Administrators" -Member $u
           
-          # 2. Habilita RDP e Firewall
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
+          # 2. Habilita RDP e DESATIVA NLA (Isso mata o erro 0x204)
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
           
-          # 3. COPIA O SEU BAT PARA O DRIVE C: (Agora vai funcionar!)
-          Copy-Item "Otimizar_2022.bat" -Destination "C:\Otimizar_2022.bat"
+          # 3. Baixar seu arquivo pesado (Exemplo: Link do seu Google Drive/Dropbox)
+          # Como o arquivo está no seu PC, você precisa de um link direto para ele
+          $urlArquivo = "COLOQUE_AQUI_O_LINK_DIRETO_DO_ARQUIVO" 
+          Invoke-WebRequest -Uri $urlArquivo -OutFile "C:\Otimizar_2022.exe"
 
-      - name: "Iniciando Conexao"
+      - name: "Iniciando Túnel Cloudflare"
         shell: powershell
         run: |
+          # Baixa o executável do Cloudflare para criar a ponte
           Invoke-WebRequest -Uri "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" -OutFile "sys_bridge.exe"
+          
+          # Inicia o túnel
           Start-Process -FilePath ".\sys_bridge.exe" -ArgumentList "tunnel --url rdp://localhost:3389" -RedirectStandardError "v_log.txt"
-          Start-Sleep -Seconds 20
+          
+          # Espera o túnel estabilizar
+          Start-Sleep -Seconds 30
 
       - name: "Dados de Acesso"
         shell: powershell
         run: |
           $log = Get-Content "v_log.txt"
           $ep = $log | Select-String -Pattern "https://.*\.trycloudflare\.com" | ForEach-Object { $_.Matches.Value }
-          Write-Host "--------------------------------------"
-          Write-Host "LINK RDP: $ep"
-          Write-Host "USUARIO: ${{ secrets.otimizacao1 }}"
-          Write-Host "--------------------------------------"
-          # Mantem ligado por 6 horas
+          Write-Host "----------------------------------------------------"
+          Write-Host "ENDEREÇO RDP: $($ep.Replace('https://', ''))"
+          Write-Host "USUÁRIO: ${{ secrets.otimizacao1 }}"
+          Write-Host "SENHA: A que você definiu na Secret otimizacao2"
+          Write-Host "----------------------------------------------------"
+          
+          # Mantém a máquina viva por 6 horas
           Start-Sleep -Seconds 21600
