@@ -1,4 +1,4 @@
-name: "Windows_Native_2022_RDP_V2"
+name: "Cloudflare_RDP_Direct"
 
 on:
   workflow_dispatch:
@@ -7,51 +7,40 @@ jobs:
   build:
     runs-on: windows-2022
     steps:
-      - name: "1. Configurando RDP e Verificando Porta"
+      - name: "1. Criando Usuario"
         shell: powershell
         run: |
-          # Criar Usuário
-          $u = "${{ secrets.otimizacao1 }}"; $p = "${{ secrets.otimizacao2 }}"
+          $u = "${{ secrets.otimizacao1 }}"
+          $p = "${{ secrets.otimizacao2 }}"
           $sec = ConvertTo-SecureString $p -AsPlainText -Force
-          New-LocalUser -Name $u -Password $sec -Description "RDP"
+          New-LocalUser -Name $u -Password $sec
           Add-LocalGroupMember -Group "Administrators" -Member $u
-          
-          # Configurações de Acesso e NLA (Fix Erro 0x204)
+
+      - name: "2. Habilitando RDP no Registro"
+        shell: powershell
+        run: |
+          # Apenas o essencial para o Windows aceitar a conexao vinda do tunel
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-          
-          # Reinicia o serviço para garantir que a porta 3389 abra
-          Restart-Service TermService -Force
-          Start-Sleep -Seconds 5
-          
-          # TESTE DE PORTA: Verifica se o RDP está escutando localmente
-          $check = Test-NetConnection -ComputerName localhost -Port 3389
-          if ($check.TcpTestSucceeded) {
-              Write-Host "SUCESSO: Porta 3389 aberta e pronta!"
-          } else {
-              Write-Host "AVISO: Porta 3389 ainda fechada. Tentando abrir novamente..."
-              Set-Service TermService -StartupType Automatic
-              Start-Service TermService
-          }
 
-      - name: "2. Iniciando Cloudflare"
+      - name: "3. Iniciando Tunel com seu Arquivo"
         shell: powershell
         run: |
+          # Baixando o Cloudflared oficial (ja que voce confirmou que o arquivo de ~64MB e este)
           Invoke-WebRequest -Uri "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" -OutFile "cloudflared.exe"
-          Start-Process -FilePath ".\cloudflared.exe" -ArgumentList "tunnel --url rdp://localhost:3389" -RedirectStandardError "v_log.txt"
-          Start-Sleep -Seconds 45 # Aumentado para dar tempo ao DNS mundial
+          
+          # Inicia o processo
+          Start-Process -FilePath ".\cloudflared.exe" -ArgumentList "tunnel --url rdp://localhost:3389" -RedirectStandardError "log.txt"
+          
+          # Espera 45 segundos (importante para o link propagar na rede)
+          Start-Sleep -Seconds 45
 
-      - name: "3. Link de Acesso"
+      - name: "4. Exibir Link"
         shell: powershell
         run: |
-          $log = Get-Content "v_log.txt"
-          $ep = $log | Select-String -Pattern "https://.*\.trycloudflare\.com" | ForEach-Object { $_.Matches.Value }
-          if ($ep) {
-              $cleanUrl = $ep.Replace("https://", "")
-              Write-Host "`n===================================================="
-              Write-Host "COPIE E COLE: $cleanUrl"
-              Write-Host "USUARIO: ${{ secrets.otimizacao1 }}"
-              Write-Host "====================================================`n"
-          }
+          $log = Get-Content "log.txt"
+          $link = $log | Select-String -Pattern "https://.*\.trycloudflare\.com" | ForEach-Object { $_.Matches.Value }
+          Write-Host "=========================================="
+          Write-Host "LINK: $link"
+          Write-Host "=========================================="
           Start-Sleep -Seconds 21600
