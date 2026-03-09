@@ -1,0 +1,24 @@
+name: WindowsNativoGratis
+on: workflow_dispatch
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Configurar Acesso
+        run: |
+          net user runneradmin SenhaForte123!
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          
+      - name: Gerar Link Aleatório Cloudflare
+        shell: pwsh
+        run: |
+          # Baixando de forma mais segura com PowerShell
+          Invoke-WebRequest -Uri "https://github.com" -OutFile "cloudflared.msi"
+          
+          # Instalando o MSI silenciosamente (isso evita o erro de 'not a valid application')
+          Start-Process msiexec.exe -ArgumentList "/i cloudflared.msi /quiet /norestart" -Wait
+          
+          # Iniciando o túnel usando o comando instalado no sistema
+          & "C:\Program Files (x86)\cloudflared\cloudflared.exe" tunnel --url tcp://localhost:3389
