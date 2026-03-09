@@ -1,20 +1,23 @@
-name: WindowsFreeRDP
+name: WindowsNativoGratis
 on: workflow_dispatch
 
 jobs:
   build:
+    # Em 2026, o windows-latest no repositório PÚBLICO tem 16GB de RAM grátis
     runs-on: windows-latest
     steps:
-      - name: Configurar Usuário e RDP
+      - name: Configurar Acesso
         run: |
-          net user runneradmin SenhaForte123! /add
-          net localgroup administrators runneradmin /add
+          # Define a senha para o usuário que já vem na máquina
+          net user runneradmin SenhaForte123!
+          # Ativa o acesso remoto (RDP)
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
           
-      - name: Iniciar Túnel Cloudflare (Sem Login)
+      - name: Gerar Link Aleatório Cloudflare
         shell: pwsh
         run: |
-          curl.exe -L -o cloudflared.exe https://github.com
-          # O comando abaixo gera um link temporário nos logs do GitHub
-          .\cloudflared.exe tunnel --url tcp://localhost:3389
+          # Baixa a versão mais recente do cloudflared
+          curl.exe -L -o cf.exe https://github.com
+          # Inicia o túnel rápido que gera o link automático
+          .\cf.exe tunnel --url tcp://localhost:3389
