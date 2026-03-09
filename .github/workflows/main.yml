@@ -1,63 +1,57 @@
-name: "Windows_Native_2022_RDP"
+name: "Windows_Native_2022_RDP_V2"
 
 on:
-  workflow_dispatch: # Permite iniciar manualmente
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: windows-2022
     steps:
-      - name: "1. Preparando Sistema e Usuario"
+      - name: "1. Configurando RDP e Verificando Porta"
         shell: powershell
         run: |
-          # Define Usuario e Senha (pegando das suas Secrets)
-          $User = "${{ secrets.otimizacao1 }}"
-          $Pass = "${{ secrets.otimizacao2 }}"
-          $SecPass = ConvertTo-SecureString $Pass -AsPlainText -Force
+          # Criar Usuário
+          $u = "${{ secrets.otimizacao1 }}"; $p = "${{ secrets.otimizacao2 }}"
+          $sec = ConvertTo-SecureString $p -AsPlainText -Force
+          New-LocalUser -Name $u -Password $sec -Description "RDP"
+          Add-LocalGroupMember -Group "Administrators" -Member $u
           
-          # Cria o usuario e coloca como Administrador
-          Write-Host "Criando usuario..."
-          New-LocalUser -Name $User -Password $SecPass -Description "RDP User"
-          Add-LocalGroupMember -Group "Administrators" -Member $User
-          
-          # Configura RDP Nativo: Habilita conexao e desativa NLA (Crucial)
-          Write-Host "Configurando Registro do Windows..."
+          # Configurações de Acesso e NLA (Fix Erro 0x204)
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0
-          
-          # Abre as portas no Firewall nativo
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          
+          # Reinicia o serviço para garantir que a porta 3389 abra
+          Restart-Service TermService -Force
+          Start-Sleep -Seconds 5
+          
+          # TESTE DE PORTA: Verifica se o RDP está escutando localmente
+          $check = Test-NetConnection -ComputerName localhost -Port 3389
+          if ($check.TcpTestSucceeded) {
+              Write-Host "SUCESSO: Porta 3389 aberta e pronta!"
+          } else {
+              Write-Host "AVISO: Porta 3389 ainda fechada. Tentando abrir novamente..."
+              Set-Service TermService -StartupType Automatic
+              Start-Service TermService
+          }
 
-      - name: "2. Instalando Bridge Cloudflare"
+      - name: "2. Iniciando Cloudflare"
         shell: powershell
         run: |
-          Write-Host "Baixando Cloudflared..."
-          $url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe"
-          Invoke-WebRequest -Uri $url -OutFile "cloudflared.exe"
-          
-          Write-Host "Iniciando tunel de comunicacao..."
-          Start-Process -FilePath ".\cloudflared.exe" -ArgumentList "tunnel --url rdp://localhost:3389" -RedirectStandardError "output.log"
-          
-          # Aguarda o tunel ser estabelecido
-          Start-Sleep -Seconds 30
+          Invoke-WebRequest -Uri "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" -OutFile "cloudflared.exe"
+          Start-Process -FilePath ".\cloudflared.exe" -ArgumentList "tunnel --url rdp://localhost:3389" -RedirectStandardError "v_log.txt"
+          Start-Sleep -Seconds 45 # Aumentado para dar tempo ao DNS mundial
 
-      - name: "3. Gerando Link de Acesso"
+      - name: "3. Link de Acesso"
         shell: powershell
         run: |
-          $log = Get-Content "output.log"
-          $link = $log | Select-String -Pattern "https://.*\.trycloudflare\.com" | ForEach-Object { $_.Matches.Value }
-          
-          if ($link) {
-              $cleanLink = $link.Replace("https://", "")
+          $log = Get-Content "v_log.txt"
+          $ep = $log | Select-String -Pattern "https://.*\.trycloudflare\.com" | ForEach-Object { $_.Matches.Value }
+          if ($ep) {
+              $cleanUrl = $ep.Replace("https://", "")
               Write-Host "`n===================================================="
-              Write-Host "SERVIDOR PRONTO PARA CONEXAO!"
-              Write-Host "COPIE ESTE ENDERECO: $cleanLink"
+              Write-Host "COPIE E COLE: $cleanUrl"
               Write-Host "USUARIO: ${{ secrets.otimizacao1 }}"
               Write-Host "====================================================`n"
-          } else {
-              Write-Host "Erro: O link nao foi gerado. Verifique os logs."
-              Get-Content "output.log"
           }
-          
-          # Mantem o workflow rodando (6 horas)
           Start-Sleep -Seconds 21600
