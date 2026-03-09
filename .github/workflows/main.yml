@@ -1,46 +1,20 @@
-name: "Cloudflare_RDP_Direct"
-
-on:
-  workflow_dispatch:
+name: WindowsFreeRDP
+on: workflow_dispatch
 
 jobs:
   build:
-    runs-on: windows-2022
+    runs-on: windows-latest
     steps:
-      - name: "1. Criando Usuario"
-        shell: powershell
+      - name: Configurar Usuário e RDP
         run: |
-          $u = "${{ secrets.otimizacao1 }}"
-          $p = "${{ secrets.otimizacao2 }}"
-          $sec = ConvertTo-SecureString $p -AsPlainText -Force
-          New-LocalUser -Name $u -Password $sec
-          Add-LocalGroupMember -Group "Administrators" -Member $u
-
-      - name: "2. Habilitando RDP no Registro"
-        shell: powershell
-        run: |
-          # Apenas o essencial para o Windows aceitar a conexao vinda do tunel
+          net user runneradmin SenhaForte123! /add
+          net localgroup administrators runneradmin /add
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-
-      - name: "3. Iniciando Tunel com seu Arquivo"
-        shell: powershell
-        run: |
-          # Baixando o Cloudflared oficial (ja que voce confirmou que o arquivo de ~64MB e este)
-          Invoke-WebRequest -Uri "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" -OutFile "cloudflared.exe"
           
-          # Inicia o processo
-          Start-Process -FilePath ".\cloudflared.exe" -ArgumentList "tunnel --url rdp://localhost:3389" -RedirectStandardError "log.txt"
-          
-          # Espera 45 segundos (importante para o link propagar na rede)
-          Start-Sleep -Seconds 45
-
-      - name: "4. Exibir Link"
-        shell: powershell
+      - name: Iniciar Túnel Cloudflare (Sem Login)
+        shell: pwsh
         run: |
-          $log = Get-Content "log.txt"
-          $link = $log | Select-String -Pattern "https://.*\.trycloudflare\.com" | ForEach-Object { $_.Matches.Value }
-          Write-Host "=========================================="
-          Write-Host "LINK: $link"
-          Write-Host "=========================================="
-          Start-Sleep -Seconds 21600
+          curl.exe -L -o cloudflared.exe https://github.com
+          # O comando abaixo gera um link temporário nos logs do GitHub
+          .\cloudflared.exe tunnel --url tcp://localhost:3389
