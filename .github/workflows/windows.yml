@@ -1,15 +1,33 @@
-name: Cloudflare Tunnel RDP
-on: workflow_dispatch
+name: Cloudflare RDP
+
+on: 
+  workflow_dispatch: # Permite rodar manualmente
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     steps:
-      - name: Baixar Cloudflared
+      - name: Instalando Ambiente Gráfico (XFCE) e RDP
         run: |
-          Invoke-WebRequest -Uri "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" -OutFile "cloudflared.exe"
+          sudo apt update
+          sudo apt install -y xfce4 xfce4-goodies xrdp
+          # Define uma senha para o usuário 'runner' (padrão do GitHub)
+          echo "runner:SenhaSegura123" | sudo chpasswd
+          sudo adduser xrdp ssl-cert
+          sudo systemctl restart xrdp
 
-      - name: Iniciar Túnel RDP
+      - name: Instalando Cloudflare Tunnel
         run: |
-          # O túnel vai gerar o link no log do GitHub
-          .\cloudflared.exe tunnel --url tcp://localhost:3389
+          wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+          sudo dpkg -i cloudflared-linux-amd64.deb
+
+      - name: Iniciando Túnel e RDP
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_TOKEN }}
+        run: |
+          # Rodando o túnel em background apontando para a porta do RDP (3389)
+          sudo cloudflared tunnel --no-autoupdate run --token $CF_TOKEN &
+          
+          # Mantém o workflow vivo por 6 horas (limite padrão do GitHub)
+          echo "RDP pronto! Conecte-se via Cloudflare Access."
+          sleep 21600
