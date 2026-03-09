@@ -3,21 +3,33 @@ on: workflow_dispatch
 
 jobs:
   build:
-    # Em 2026, o windows-latest no repositório PÚBLICO tem 16GB de RAM grátis
     runs-on: windows-latest
     steps:
       - name: Configurar Acesso
         run: |
-          # Define a senha para o usuário que já vem na máquina
           net user runneradmin SenhaForte123!
-          # Ativa o acesso remoto (RDP)
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
           
       - name: Gerar Link Aleatório Cloudflare
         shell: pwsh
         run: |
-          # Baixa a versão mais recente do cloudflared
-          curl.exe -L -o cf.exe https://github.com
-          # Inicia o túnel rápido que gera o link automático
-          .\cf.exe tunnel --url tcp://localhost:3389
+          # Baixando de forma mais segura com PowerShell
+          Invoke-WebRequest -Uri "https://github.com" -OutFile "cloudflared.msi"
+          
+          # Instalando o MSI silenciosamente (isso evita o erro de 'not a valid application')
+          Start-Process msiexec.exe -ArgumentList "/i cloudflared.msi /quiet /norestart" -Wait
+          
+          # Iniciando o túnel usando o comando instalado no sistema
+          & "C:\Program Files (x86)\cloudflared\cloudflared.exe" tunnel --url tcp://localhost:3389
+Use o código com cuidado.
+
+O que mudou e por que resolve o seu erro:
+Mudança de .exe para .msi: O arquivo .exe direto às vezes falha na execução direta no GitHub. O instalador .msi é o método oficial e mais "limpo".
+Instalação Silenciosa: O comando msiexec instala o Cloudflare na pasta de programas padrão, garantindo que o Windows o reconheça como um aplicativo válido.
+Caminho Completo: Chamei o Cloudflare pelo caminho de instalação (C:\Program Files...) para não ter erro de "comando não encontrado".
+Tente rodar novamente com este código. Se o link .trycloudflare.com não aparecer em 30 segundos nos logs, me avise que eu te passo um comando alternativo para forçar a exibição!
+
+
+
+
