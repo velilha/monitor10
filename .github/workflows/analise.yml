@@ -7,40 +7,42 @@ jobs:
   build:
     runs-on: windows-latest
     steps:
-      - name: Configuração Ultrarrápida
+      - name: Inicialização Rápida
         shell: pwsh
         run: |
-          # 1. Configuração de Idioma Otimizada
-          # Se o idioma já existir, ele pula a instalação pesada
-          if (!(Get-WinUserLanguageList).LanguageTag.Contains("pt-BR")) {
-              Install-Language pt-BR
-          }
-          Set-WinUILanguageOverride -Language pt-BR
-          Set-WinSystemLocale -SystemLocale pt-BR
-          
-          # 2. Desativação agressiva de serviços (Performance Máxima)
-          $servicos = @("wuauserv", "bits", "dosvc", "DiagTrack", "WerSvc", "WbioSrvc", "Spooler", "WSearch", "MapsBroker", "dmwappushservice", "bthserv", "PhoneSvc", "lfsvc")
-          foreach ($s in $servicos) {
-            Stop-Service -Name $s -Force -ErrorAction SilentlyContinue
-            Set-Service -Name $s -StartupType Disabled -ErrorAction SilentlyContinue
-          }
-          
-          # 3. Bloqueios de Telemetria (Via registro é instantâneo)
-          reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection" /v AllowTelemetry /t REG_DWORD /d 0 /f
-          
-          # 4. Interface (Modo Escuro e Performance)
-          New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "SystemUsesLightTheme" -Value 0 -Force | Out-Null
-          Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" -Name "VisualFXSetting" -Value 2
-          
-          # 5. Habilitar Acesso Remoto
+          # 1. Habilitar Acesso Remoto
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          
+          # 2. Criar Script de Otimização e Tradução em Segundo Plano
+          $scriptPath = "C:\Users\runneradmin\Desktop\Otimizar.ps1"
+          $conteudo = @"
+          # Instalar idioma e traduzir UI
+          Install-Language pt-BR
+          Set-WinSystemLocale -SystemLocale pt-BR
+          Set-WinUserLanguageList -LanguageList pt-BR -Force
+          Set-WinUILanguageOverride -Language pt-BR
+          
+          # Serviços para desativar
+          `$servicos = @("wuauserv", "bits", "dosvc", "DiagTrack", "WerSvc", "WbioSrvc", "Spooler", "WSearch", "MapsBroker", "dmwappushservice", "bthserv", "PhoneSvc", "lfsvc")
+          foreach (`$s in `$servicos) {
+            Stop-Service -Name `$s -Force -ErrorAction SilentlyContinue
+            Set-Service -Name `$s -StartupType Disabled -ErrorAction SilentlyContinue
+          }
+          # Otimização visual
+          Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" -Name "VisualFXSetting" -Value 2
+"@
+          Set-Content -Path $scriptPath -Value $conteudo
+          
+          # 3. Gatilho Invisível na Inicialização
+          $startup = "C:\Users\runneradmin\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup\ExecOtimizacao.vbs"
+          $vbs = 'CreateObject("WScript.Shell").Run "powershell -WindowStyle Hidden -ExecutionPolicy Bypass -File C:\Users\runneradmin\Desktop\Otimizar.ps1", 0, False'
+          Set-Content -Path $startup -Value $vbs
 
       - name: Iniciar Tunel
         shell: pwsh
         run: |
-          # Download do tunel (O Cloudflare é leve e baixa rápido)
-          curl.exe -L --output cloudflared.exe https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe
+          Invoke-WebRequest -Uri "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" -OutFile "cloudflared.exe"
           Start-Process ./cloudflared.exe -ArgumentList "tunnel --url tcp://localhost:3389" -WindowStyle Hidden
-          Write-Host "Tunel iniciado!"
+          Write-Host "Ambiente pronto! A tradução e otimização rodarão automaticamente após você logar."
           Start-Sleep -Seconds 21600
