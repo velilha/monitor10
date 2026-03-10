@@ -13,14 +13,10 @@ jobs:
           $u = '${{ secrets.OTIMIZA1 }}'
           $p = '${{ secrets.OTIMIZA2 }}'
           
-          # Remove restrições de senha para aceitar sua chave secreta
-          secedit /export /cfg C:\secpol.cfg
-          (Get-Content C:\secpol.cfg) -replace 'PasswordComplexity = 1', 'PasswordComplexity = 0' | Set-Content C:\secpol.cfg
-          (Get-Content C:\secpol.cfg) -replace 'MinimumPasswordLength = 7', 'MinimumPasswordLength = 0' | Set-Content C:\secpol.cfg
-          secedit /configure /db C:\windows\security\local.sdb /cfg C:\secpol.cfg /areas SECURITYPOLICY
-          
-          # Define senha e habilita RDP
+          # Define a senha sem passar pelo processo lento de segurança
           net user $u $p
+          
+          # Habilita RDP
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
           
