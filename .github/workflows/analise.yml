@@ -4,21 +4,16 @@
           $u = '${{ secrets.OTIMIZA1 }}'
           $p = '${{ secrets.OTIMIZA2 }}'
           
-          # Desativa a obrigatoriedade de complexidade de senha via registro e política local
-          # Isso permite que qualquer senha (até simples) seja aceita
           secedit /export /cfg C:\secpol.cfg
           (Get-Content C:\secpol.cfg) -replace 'PasswordComplexity = 1', 'PasswordComplexity = 0' | Set-Content C:\secpol.cfg
           (Get-Content C:\secpol.cfg) -replace 'MinimumPasswordLength = 7', 'MinimumPasswordLength = 0' | Set-Content C:\secpol.cfg
           secedit /configure /db C:\windows\security\local.sdb /cfg C:\secpol.cfg /areas SECURITYPOLICY
           
-          # Agora define a senha (o comando net user funcionará agora)
           net user $u $p
           
-          # Habilita RDP
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
           
-          # Configura arquivos e script
           $sp = "C:\Users\$u\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup"
           $dp = "C:\Users\$u\Desktop"
           foreach ($d in @($sp, $dp)) { if (!(Test-Path $d)) { New-Item -Path $d -ItemType Directory -Force } }
