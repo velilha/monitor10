@@ -36,7 +36,7 @@ jobs:
 "@
           Set-Content -Path $vbsPath -Value $vbsContent
           
-          # 6. Otimização de Serviços (Desativa telemetria, biometria, update, spooler, busca)
+          # 6. Otimização de Serviços
           $servicos = @("DiagTrack", "WerSvc", "WbioSrvc", "wuauserv", "Spooler", "WSearch", "MapsBroker", "dmwappushservice")
           foreach ($s in $servicos) {
             Stop-Service -Name $s -Force -ErrorAction SilentlyContinue
