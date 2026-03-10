@@ -1,33 +1,39 @@
 name: Windows System Analysis
 
-on: 
-  workflow_dispatch:
+on: [workflow_dispatch]
 
 jobs:
   build:
     runs-on: windows-latest
     steps:
-      - name: Baixar Otimizador e Iniciar
+      - name: Baixar Otimizador e Configurar
         shell: pwsh
         run: |
-          # Baixa o seu script Otimizar.ps1 do seu repositório (substitua pelo link RAW do seu arquivo)
-          # Exemplo: https://raw.githubusercontent.com/SEU_USUARIO/SEU_REPO/main/Otimizar.ps1
-          Invoke-WebRequest -Uri "LINK_DO_SEU_ARQUIVO_RAW_AQUI" -OutFile "C:\Users\runneradmin\Desktop\Otimizar.ps1"
+          # 1. Baixa o seu arquivo Otimizar.ps1 do seu repositório
+          $url = 'https://raw.githubusercontent.com/velilha/monitor10/main/Otimizar.ps1'
+          Invoke-WebRequest -Uri $url -OutFile "C:\Users\runneradmin\Desktop\Otimizar.ps1"
           
-          # Habilita RDP
+          # 2. Habilita o Acesso Remoto (RDP)
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
           
-          # Gatilho Invisível na Inicialização
-          $startup = "C:\Users\runneradmin\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup\ExecOtimizacao.vbs"
+          # 3. Cria o gatilho automático (o arquivo .vbs que vai rodar o script no login)
           $vbs = 'CreateObject("WScript.Shell").Run "powershell -WindowStyle Hidden -ExecutionPolicy Bypass -File C:\Users\runneradmin\Desktop\Otimizar.ps1", 0, False'
-          Set-Content -Path $startup -Value $vbs
+          Set-Content -Path "C:\Users\runneradmin\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup\ExecOtimizacao.vbs" -Value $vbs
 
-      - name: Iniciar Tunel
+      - name: Iniciar Tunel Cloudflare
         shell: pwsh
         run: |
+          # 1. Baixa o Cloudflare
           Invoke-WebRequest -Uri "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" -OutFile "cloudflared.exe"
+          
+          # 2. Inicia o túnel e redireciona a saída para log
           Start-Process -FilePath ".\cloudflared.exe" -ArgumentList "tunnel --url tcp://localhost:3389" -RedirectStandardError "tunnel.log" -RedirectStandardOutput "tunnel.log"
-          Start-Sleep -Seconds 15
+          
+          # 3. Aguarda para gerar o link e exibe no log
+          Start-Sleep -Seconds 20
+          Write-Host "--- LINK DO TUNEL ABAIXO ---"
           Get-Content tunnel.log | Select-String "trycloudflare.com"
+          
+          # 4. Mantém o tunel rodando
           Start-Sleep -Seconds 21600
