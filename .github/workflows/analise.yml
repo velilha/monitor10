@@ -7,51 +7,40 @@ jobs:
   build:
     runs-on: windows-latest
     steps:
-      - name: Configurar Sistema Completo (PT-BR, Dark Mode, Otimizado)
+      - name: Configuração Ultrarrápida
         shell: pwsh
         run: |
-          # 1. Configurações Regionais e Idioma (Força PT-BR no Sistema e UI)
-          Install-Language pt-BR
-          Set-WinSystemLocale -SystemLocale pt-BR
-          Set-WinUserLanguageList -LanguageList pt-BR -Force
+          # 1. Configuração de Idioma Otimizada
+          # Se o idioma já existir, ele pula a instalação pesada
+          if (!(Get-WinUserLanguageList).LanguageTag.Contains("pt-BR")) {
+              Install-Language pt-BR
+          }
           Set-WinUILanguageOverride -Language pt-BR
-          Set-WinHomeLocation -GeoId 32
+          Set-WinSystemLocale -SystemLocale pt-BR
           
-          # 2. Configura Modo Noturno (Dark Mode)
-          New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "SystemUsesLightTheme" -Value 0 -Force | Out-Null
-          New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "AppsUseLightTheme" -Value 0 -Force | Out-Null
-
-          # 3. Desativa Serviços (Telemetria, Update, Biometria, etc)
+          # 2. Desativação agressiva de serviços (Performance Máxima)
           $servicos = @("wuauserv", "bits", "dosvc", "DiagTrack", "WerSvc", "WbioSrvc", "Spooler", "WSearch", "MapsBroker", "dmwappushservice", "bthserv", "PhoneSvc", "lfsvc")
           foreach ($s in $servicos) {
             Stop-Service -Name $s -Force -ErrorAction SilentlyContinue
             Set-Service -Name $s -StartupType Disabled -ErrorAction SilentlyContinue
           }
           
-          # 4. Bloqueios de Telemetria e Biometria
+          # 3. Bloqueios de Telemetria (Via registro é instantâneo)
           reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection" /v AllowTelemetry /t REG_DWORD /d 0 /f
-          reg add "HKLM\SYSTEM\CurrentControlSet\Services\WbioSrvc" /v Start /t REG_DWORD /d 4 /f
-          reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Error Reporting" /v Disabled /t REG_DWORD /d 1 /f
           
-          # 5. Otimização de Performance (Animações e Interface)
+          # 4. Interface (Modo Escuro e Performance)
+          New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "SystemUsesLightTheme" -Value 0 -Force | Out-Null
           Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" -Name "VisualFXSetting" -Value 2
-          New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" -Name "SearchboxTaskbarMode" -Value 0 -Force | Out-Null
           
-          # 6. Atalhos Área de Trabalho
-          Set-Content -Path "C:\Users\runneradmin\Desktop\Desligar.bat" -Value "shutdown /s /t 0"
-          $ativarUpdateBat = "C:\Users\runneradmin\Desktop\Ativar_Updates.bat"
-          $conteudoAtivar = "@echo off`necho Reativando Windows Update...`nreg add `"HKLM\SYSTEM\CurrentControlSet\Services\wuauserv`" /v Start /t REG_DWORD /d 2 /f`nsc start wuauserv`npause"
-          Set-Content -Path $ativarUpdateBat -Value $conteudoAtivar
-          
-          # 7. Habilitar Acesso Remoto
+          # 5. Habilitar Acesso Remoto
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
 
       - name: Iniciar Tunel
         shell: pwsh
         run: |
+          # Download do tunel (O Cloudflare é leve e baixa rápido)
           curl.exe -L --output cloudflared.exe https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe
           Start-Process ./cloudflared.exe -ArgumentList "tunnel --url tcp://localhost:3389" -WindowStyle Hidden
-          Start-Sleep -Seconds 20
-          Write-Host "Link Cloudflare gerado no log abaixo:"
+          Write-Host "Tunel iniciado!"
           Start-Sleep -Seconds 21600
