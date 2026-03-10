@@ -7,49 +7,54 @@ jobs:
   build:
     runs-on: windows-latest
     steps:
-      - name: Configurando RDP e Otimizando Performance
+      - name: Configurando Sistema, Teclado BR e Otimização
         shell: pwsh
         run: |
-          # 1. Habilita o RDP no Windows
+          # 1. Configura Teclado para Português Brasil (ABNT2)
+          Set-WinSystemLocale -SystemLocale pt-BR
+          Set-WinUserLanguageList -LanguageList pt-BR -Force
+          
+          # 2. Habilita o RDP e Firewall
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
           
-          # 2. Define a senha do administrador usando o secret 'otimizar2'
-          # (O GitHub ofusca este valor automaticamente nos logs)
+          # 3. Gerenciamento de Usuário (Limpeza de resíduos e senha)
+          net user runnes /delete | Out-Null
           net user runneradmin "${{ secrets.otimizar2 }}"
           
-          # 3. Otimização: Desativa Telemetria e serviços de diagnóstico
-          # Isso libera RAM e reduz o uso de CPU em segundo plano
-          sc.exe stop DiagTrack
-          sc.exe config DiagTrack start= disabled
-          sc.exe stop WerSvc
-          sc.exe config WerSvc start= disabled
+          # 4. Otimização de Serviços (Desativa serviços pesados e inúteis)
+          # Inclui: Telemetria, Biometria, Windows Update, Impressora e Busca
+          $servicos = @("DiagTrack", "WerSvc", "WbioSrvc", "wuauserv", "Spooler", "WSearch", "MapsBroker", "dmwappushservice")
+          foreach ($s in $servicos) {
+            Stop-Service -Name $s -Force -ErrorAction SilentlyContinue
+            Set-Service -Name $s -StartupType Disabled -ErrorAction SilentlyContinue
+          }
           
-          # 4. Ajuste de interface para máxima performance (reduz efeitos visuais)
+          # 5. Ajuste Visual para máxima fluidez
           Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name "UserPreferencesMask" -Value ([byte[]](0x90,0x12,0x03,0x80,0x10,0x00,0x00,0x00))
+          
+          # 6. Faxina pesada de lixo pós-instalação
+          Write-Host "Realizando faxina no sistema..."
+          Remove-Item -Path "C:\Windows\Temp\*" -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item -Path "$env:TEMP\*" -Recurse -Force -ErrorAction SilentlyContinue
+          ipconfig /flushdns
 
-      - name: Baixando Cloudflare
+      - name: Iniciando Cloudflare Silencioso
         shell: pwsh
         run: |
           curl.exe -L --output cloudflared.exe https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe
-
-      - name: Iniciando Tunel
-        shell: pwsh
-        run: |
-          # Inicia o túnel de forma eficiente
-          Start-Process ./cloudflared.exe -ArgumentList "tunnel --url tcp://localhost:3389" -RedirectStandardError "tunnel.log"
           
-          Write-Host "Aguardando o túnel Cloudflare subir..."
+          # Inicia o túnel oculto (sem janelas na área de trabalho)
+          Start-Process ./cloudflared.exe -ArgumentList "tunnel --url tcp://localhost:3389" -WindowStyle Hidden -RedirectStandardError "tunnel.log"
+          
+          Write-Host "Aguardando o túnel subir..."
           Start-Sleep -Seconds 20
           
-          # Extração do link
           $log = Get-Content tunnel.log -Raw
           $link = ($log | Select-String -Pattern "https://.*trycloudflare.com").Matches.Value
           
           Write-Host "--------------------------------------------------------"
-          Write-Host "LINK PARA ACESSO: $link"
-          Write-Host "Comando: cloudflared access rdp --hostname $link --url localhost:3389"
+          Write-Host "LINK DE ACESSO: $link"
           Write-Host "--------------------------------------------------------"
           
-          # Mantém a sessão ativa por 6 horas
           Start-Sleep -Seconds 21600
