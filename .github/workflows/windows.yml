@@ -7,41 +7,49 @@ jobs:
   build:
     runs-on: windows-latest
     steps:
-      - name: Configurando RDP e Usuário
+      - name: Configurando RDP e Otimizando Performance
         shell: pwsh
         run: |
-          # Habilita o RDP no Windows
+          # 1. Habilita o RDP no Windows
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
           
-          # Cria o usuário 'runnes' com sua senha e adiciona como administrador
-          net user runnes "shalom3235@" /add
-          net localgroup administrators runnes /add
+          # 2. Define a senha do administrador usando o secret 'otimizar2'
+          # (O GitHub ofusca este valor automaticamente nos logs)
+          net user runneradmin "${{ secrets.otimizar2 }}"
+          
+          # 3. Otimização: Desativa Telemetria e serviços de diagnóstico
+          # Isso libera RAM e reduz o uso de CPU em segundo plano
+          sc.exe stop DiagTrack
+          sc.exe config DiagTrack start= disabled
+          sc.exe stop WerSvc
+          sc.exe config WerSvc start= disabled
+          
+          # 4. Ajuste de interface para máxima performance (reduz efeitos visuais)
+          Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name "UserPreferencesMask" -Value ([byte[]](0x90,0x12,0x03,0x80,0x10,0x00,0x00,0x00))
 
       - name: Baixando Cloudflare
         shell: pwsh
         run: |
           curl.exe -L --output cloudflared.exe https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe
 
-      - name: Iniciando Tunel Aleatorio
+      - name: Iniciando Tunel
         shell: pwsh
         run: |
-          # Inicia o túnel e grava a saída em um arquivo de log
+          # Inicia o túnel de forma eficiente
           Start-Process ./cloudflared.exe -ArgumentList "tunnel --url tcp://localhost:3389" -RedirectStandardError "tunnel.log"
           
-          # Aguarda o túnel conectar
           Write-Host "Aguardando o túnel Cloudflare subir..."
           Start-Sleep -Seconds 20
           
-          # Extrai o link do log
+          # Extração do link
           $log = Get-Content tunnel.log -Raw
           $link = ($log | Select-String -Pattern "https://.*trycloudflare.com").Matches.Value
           
           Write-Host "--------------------------------------------------------"
-          Write-Host "LINK PARA USAR NO SEU PC:"
-          Write-Host "cloudflared access rdp --hostname $link --url localhost:3389"
+          Write-Host "LINK PARA ACESSO: $link"
+          Write-Host "Comando: cloudflared access rdp --hostname $link --url localhost:3389"
           Write-Host "--------------------------------------------------------"
-          Write-Host "Aguardando 6 horas para manter a sessão ativa..."
           
-          # Mantém vivo por 6 horas
+          # Mantém a sessão ativa por 6 horas
           Start-Sleep -Seconds 21600
