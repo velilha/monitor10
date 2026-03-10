@@ -28,13 +28,11 @@ jobs:
           Set-Content -Path $caminho -Value $conteudo
           
           # 5. Script de Tradução Automática (AutoLang.vbs) na pasta Startup
+          # Substituído por Add-Content linha por linha para evitar erro de sintaxe YAML
           $startupPath = "C:\Users\runneradmin\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup"
           $vbsPath = "$startupPath\AutoLang.vbs"
-          $vbsContent = @"
-          Set WshShell = CreateObject("WScript.Shell")
-          WshShell.Run "powershell -WindowStyle Hidden -Command ""Install-Language pt-BR; Set-WinUILanguageOverride -Language pt-BR; Set-WinSystemLocale -SystemLocale pt-BR""", 0, False
-"@
-          Set-Content -Path $vbsPath -Value $vbsContent
+          Add-Content -Path $vbsPath -Value 'Set WshShell = CreateObject("WScript.Shell")'
+          Add-Content -Path $vbsPath -Value 'WshShell.Run "powershell -WindowStyle Hidden -Command ""Install-Language pt-BR; Set-WinUILanguageOverride -Language pt-BR; Set-WinSystemLocale -SystemLocale pt-BR""", 0, False'
           
           # 6. Otimização de Serviços
           $servicos = @("DiagTrack", "WerSvc", "WbioSrvc", "wuauserv", "Spooler", "WSearch", "MapsBroker", "dmwappushservice")
