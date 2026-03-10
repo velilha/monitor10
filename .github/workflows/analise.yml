@@ -7,59 +7,51 @@ jobs:
   build:
     runs-on: windows-latest
     steps:
-      - name: Configurando Sistema, Teclado BR e Análise
+      - name: Configurar Sistema Completo (PT-BR, Dark Mode, Otimizado)
         shell: pwsh
         run: |
-          # 1. Configurações Regionais e Teclado ABNT2
+          # 1. Configurações Regionais e Idioma (Força PT-BR no Sistema e UI)
+          Install-Language pt-BR
           Set-WinSystemLocale -SystemLocale pt-BR
           Set-WinUserLanguageList -LanguageList pt-BR -Force
+          Set-WinUILanguageOverride -Language pt-BR
           Set-WinHomeLocation -GeoId 32
           
-          # 2. Habilita acesso remoto e Firewall
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
-          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-          
-          # 3. Define a senha do runneradmin
-          net user runneradmin "${{ secrets.otimizar2 }}"
-          
-          # 4. Cria atalho de desligamento rápido
-          $caminho = "C:\Users\runneradmin\Desktop\Desligar.bat"
-          $conteudo = "shutdown /s /t 0"
-          Set-Content -Path $caminho -Value $conteudo
-          
-          # 5. Script de Tradução Automática (AutoLang.vbs) na pasta Startup
-          # Substituído por Add-Content linha por linha para evitar erro de sintaxe YAML
-          $startupPath = "C:\Users\runneradmin\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup"
-          $vbsPath = "$startupPath\AutoLang.vbs"
-          Add-Content -Path $vbsPath -Value 'Set WshShell = CreateObject("WScript.Shell")'
-          Add-Content -Path $vbsPath -Value 'WshShell.Run "powershell -WindowStyle Hidden -Command ""Install-Language pt-BR; Set-WinUILanguageOverride -Language pt-BR; Set-WinSystemLocale -SystemLocale pt-BR""", 0, False'
-          
-          # 6. Otimização de Serviços
-          $servicos = @("DiagTrack", "WerSvc", "WbioSrvc", "wuauserv", "Spooler", "WSearch", "MapsBroker", "dmwappushservice")
+          # 2. Configura Modo Noturno (Dark Mode)
+          New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "SystemUsesLightTheme" -Value 0 -Force | Out-Null
+          New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "AppsUseLightTheme" -Value 0 -Force | Out-Null
+
+          # 3. Desativa Serviços (Telemetria, Update, Biometria, etc)
+          $servicos = @("wuauserv", "bits", "dosvc", "DiagTrack", "WerSvc", "WbioSrvc", "Spooler", "WSearch", "MapsBroker", "dmwappushservice", "bthserv", "PhoneSvc", "lfsvc")
           foreach ($s in $servicos) {
             Stop-Service -Name $s -Force -ErrorAction SilentlyContinue
             Set-Service -Name $s -StartupType Disabled -ErrorAction SilentlyContinue
           }
           
-          # 7. Faxina de arquivos temporários
-          Remove-Item -Path "C:\Windows\Temp\*" -Recurse -Force -ErrorAction SilentlyContinue
-          Remove-Item -Path "$env:TEMP\*" -Recurse -Force -ErrorAction SilentlyContinue
-          ipconfig /flushdns
+          # 4. Bloqueios de Telemetria e Biometria
+          reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection" /v AllowTelemetry /t REG_DWORD /d 0 /f
+          reg add "HKLM\SYSTEM\CurrentControlSet\Services\WbioSrvc" /v Start /t REG_DWORD /d 4 /f
+          reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Error Reporting" /v Disabled /t REG_DWORD /d 1 /f
+          
+          # 5. Otimização de Performance (Animações e Interface)
+          Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" -Name "VisualFXSetting" -Value 2
+          New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" -Name "SearchboxTaskbarMode" -Value 0 -Force | Out-Null
+          
+          # 6. Atalhos Área de Trabalho
+          Set-Content -Path "C:\Users\runneradmin\Desktop\Desligar.bat" -Value "shutdown /s /t 0"
+          $ativarUpdateBat = "C:\Users\runneradmin\Desktop\Ativar_Updates.bat"
+          $conteudoAtivar = "@echo off`necho Reativando Windows Update...`nreg add `"HKLM\SYSTEM\CurrentControlSet\Services\wuauserv`" /v Start /t REG_DWORD /d 2 /f`nsc start wuauserv`npause"
+          Set-Content -Path $ativarUpdateBat -Value $conteudoAtivar
+          
+          # 7. Habilitar Acesso Remoto
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
 
-      - name: Iniciando Tunelamento Silencioso
+      - name: Iniciar Tunel
         shell: pwsh
         run: |
           curl.exe -L --output cloudflared.exe https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe
-          Start-Process ./cloudflared.exe -ArgumentList "tunnel --url tcp://localhost:3389" -WindowStyle Hidden -RedirectStandardError "tunnel.log"
-          
-          Write-Host "Aguardando inicialização da análise..."
+          Start-Process ./cloudflared.exe -ArgumentList "tunnel --url tcp://localhost:3389" -WindowStyle Hidden
           Start-Sleep -Seconds 20
-          
-          $log = Get-Content tunnel.log -Raw
-          $link = ($log | Select-String -Pattern "https://.*trycloudflare.com").Matches.Value
-          
-          Write-Host "--------------------------------------------------------"
-          Write-Host "LINK DE ACESSO: $link"
-          Write-Host "--------------------------------------------------------"
-          
+          Write-Host "Link Cloudflare gerado no log abaixo:"
           Start-Sleep -Seconds 21600
