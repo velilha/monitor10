@@ -20,6 +20,13 @@ jobs:
           $vbs = 'CreateObject("WScript.Shell").Run "powershell -WindowStyle Hidden -ExecutionPolicy Bypass -File C:\Users\runneradmin\Desktop\Otimizar.ps1", 0, False'
           Set-Content -Path "C:\Users\runneradmin\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup\ExecOtimizacao.vbs" -Value $vbs
 
+      - name: Definir senha do sistema
+        shell: pwsh
+        run: |
+          # Aplica a senha que está no seu Secret OTIMIZAR2
+          $senha = '${{ secrets.OTIMIZAR2 }}'
+          net user runneradmin $senha
+
       - name: Iniciar Tunel Cloudflare
         shell: pwsh
         run: |
