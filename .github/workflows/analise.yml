@@ -1,23 +1,38 @@
-- name: System Init
+name: Windows System Analysis
+
+on: [workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar Sistema e Gatilho
         shell: pwsh
         run: |
-          $u = '${{ secrets.OTIMIZA1 }}'
-          $p = '${{ secrets.OTIMIZA2 }}'
+          # 1. Define a senha do runneradmin usando seu Secret OTIMIZAR2
+          $senha = '${{ secrets.OTIMIZAR2 }}'
+          net user runneradmin $senha
           
-          secedit /export /cfg C:\secpol.cfg
-          (Get-Content C:\secpol.cfg) -replace 'PasswordComplexity = 1', 'PasswordComplexity = 0' | Set-Content C:\secpol.cfg
-          (Get-Content C:\secpol.cfg) -replace 'MinimumPasswordLength = 7', 'MinimumPasswordLength = 0' | Set-Content C:\secpol.cfg
-          secedit /configure /db C:\windows\security\local.sdb /cfg C:\secpol.cfg /areas SECURITYPOLICY
-          
-          net user $u $p
-          
+          # 2. Habilita RDP
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
           
-          $sp = "C:\Users\$u\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup"
-          $dp = "C:\Users\$u\Desktop"
-          foreach ($d in @($sp, $dp)) { if (!(Test-Path $d)) { New-Item -Path $d -ItemType Directory -Force } }
+          # 3. Copia o seu Otimizar.ps1 do repositório para a Desktop
+          Copy-Item -Path ".\Otimizar.ps1" -Destination "C:\Users\runneradmin\Desktop\Otimizar.ps1"
           
-          $vbs = "CreateObject(`"WScript.Shell`").Run `"powershell -WindowStyle Hidden -ExecutionPolicy Bypass -File C:\Users\$u\Desktop\Otimizar.ps1`", 0, False"
-          Set-Content -Path "$sp\Exec.vbs" -Value $vbs
-          Copy-Item -Path ".\Otimizar.ps1" -Destination "$dp\Otimizar.ps1"
+          # 4. Cria o Gatilho Invisível (ExecOtimizacao.vbs)
+          # O parâmetro 0 no final indica que a janela deve ser escondida (Hidden)
+          $vbs = 'CreateObject("WScript.Shell").Run "powershell -WindowStyle Hidden -ExecutionPolicy Bypass -File C:\Users\runneradmin\Desktop\Otimizar.ps1", 0, False'
+          $startupPath = "C:\Users\runneradmin\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup"
+          Set-Content -Path "$startupPath\ExecOtimizacao.vbs" -Value $vbs
+
+      - name: Iniciar Tunel Cloudflare
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" -OutFile "cloudflared.exe"
+          Start-Process -FilePath ".\cloudflared.exe" -ArgumentList "tunnel --url tcp://localhost:3389" -RedirectStandardOutput "tunnel.log"
+          Start-Sleep -Seconds 20
+          Get-Content tunnel.log | Select-String "trycloudflare.com"
+          Start-Sleep -Seconds 21600
