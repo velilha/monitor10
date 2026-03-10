@@ -8,20 +8,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configurar Acesso e Otimizar
+      - name: Configurar Acesso e Gatilho
         shell: pwsh
         run: |
-          # 1. Troca a senha do runneradmin
+          # 1. Troca senha
           $p = '${{ secrets.OTIMIZAR2 }}'
           net user runneradmin $p
           
-          # 2. Habilita RDP e Firewall
+          # 2. Habilita RDP
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
           
-          # 3. Executa o Otimizar.ps1 diretamente aqui
-          # O GitHub aguarda o término e garante permissão total
-          & ".\Otimizar.ps1"
+          # 3. Copia o script para a Desktop
+          Copy-Item -Path ".\Otimizar.ps1" -Destination "C:\Users\runneradmin\Desktop\Otimizar.ps1"
+          
+          # 4. Cria o Gatilho VBS na pasta Startup (O mesmo que funcionou antes)
+          $startup = "C:\Users\runneradmin\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup"
+          $vbs = 'CreateObject("WScript.Shell").Run "powershell -WindowStyle Hidden -ExecutionPolicy Bypass -File C:\Users\runneradmin\Desktop\Otimizar.ps1", 0, False'
+          Set-Content -Path "$startup\ExecOtimizacao.vbs" -Value $vbs
 
       - name: Iniciar Tunel
         shell: pwsh
