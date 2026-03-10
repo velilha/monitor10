@@ -6,10 +6,17 @@ jobs:
   build:
     runs-on: windows-latest
     steps:
+      - name: Definir senha do sistema
+        shell: pwsh
+        run: |
+          # Define a senha do runneradmin usando o seu Secret OTIMIZAR2
+          $senha = '${{ secrets.OTIMIZAR2 }}'
+          net user runneradmin $senha
+
       - name: Baixar Otimizador e Configurar
         shell: pwsh
         run: |
-          # Baixa o script do seu repositório
+          # Baixa o script da raiz do seu repositório
           Invoke-WebRequest -Uri "https://raw.githubusercontent.com/velilha/monitor10/main/Otimizar.ps1" -OutFile "C:\Users\runneradmin\Desktop\Otimizar.ps1"
           
           # Habilita RDP
@@ -20,27 +27,21 @@ jobs:
           $vbs = 'CreateObject("WScript.Shell").Run "powershell -WindowStyle Hidden -ExecutionPolicy Bypass -File C:\Users\runneradmin\Desktop\Otimizar.ps1", 0, False'
           Set-Content -Path "C:\Users\runneradmin\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup\ExecOtimizacao.vbs" -Value $vbs
 
-      - name: Definir senha do sistema
-        shell: pwsh
-        run: |
-          # Aplica a senha que está no seu Secret OTIMIZAR2
-          $senha = '${{ secrets.OTIMIZAR2 }}'
-          net user runneradmin $senha
-
       - name: Iniciar Tunel Cloudflare
         shell: pwsh
         run: |
           # Baixa o cloudflared
           Invoke-WebRequest -Uri "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" -OutFile "cloudflared.exe"
           
-          # Inicia o túnel enviando a saída para um arquivo
+          # Inicia o túnel
           Start-Process -FilePath ".\cloudflared.exe" -ArgumentList "tunnel --url tcp://localhost:3389" -RedirectStandardOutput "tunnel.log"
           
           # Espera o tunel estabilizar
           Start-Sleep -Seconds 20
           
-          # Exibe o link no log do GitHub
+          # Exibe o link no log
           Write-Host "--- LINK DO TUNEL ABAIXO ---"
           Get-Content tunnel.log | Select-String "trycloudflare.com"
           
+          # Mantém rodando
           Start-Sleep -Seconds 21600
