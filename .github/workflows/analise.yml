@@ -14,25 +14,16 @@ jobs:
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
           
-          # 2. Criar Script de Otimização e Tradução em Segundo Plano
+          # 2. Criar Script de Otimização (Otimizar.ps1) usando Add-Content (Seguro)
           $scriptPath = "C:\Users\runneradmin\Desktop\Otimizar.ps1"
-          $conteudo = @"
-          # Instalar idioma e traduzir UI
-          Install-Language pt-BR
-          Set-WinSystemLocale -SystemLocale pt-BR
-          Set-WinUserLanguageList -LanguageList pt-BR -Force
-          Set-WinUILanguageOverride -Language pt-BR
-          
-          # Serviços para desativar
-          `$servicos = @("wuauserv", "bits", "dosvc", "DiagTrack", "WerSvc", "WbioSrvc", "Spooler", "WSearch", "MapsBroker", "dmwappushservice", "bthserv", "PhoneSvc", "lfsvc")
-          foreach (`$s in `$servicos) {
-            Stop-Service -Name `$s -Force -ErrorAction SilentlyContinue
-            Set-Service -Name `$s -StartupType Disabled -ErrorAction SilentlyContinue
-          }
-          # Otimização visual
-          Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" -Name "VisualFXSetting" -Value 2
-"@
-          Set-Content -Path $scriptPath -Value $conteudo
+          Remove-Item -Path $scriptPath -ErrorAction SilentlyContinue
+          Add-Content -Path $scriptPath -Value 'Install-Language pt-BR'
+          Add-Content -Path $scriptPath -Value 'Set-WinSystemLocale -SystemLocale pt-BR'
+          Add-Content -Path $scriptPath -Value 'Set-WinUserLanguageList -LanguageList pt-BR -Force'
+          Add-Content -Path $scriptPath -Value 'Set-WinUILanguageOverride -Language pt-BR'
+          Add-Content -Path $scriptPath -Value '$servicos = @("wuauserv", "bits", "dosvc", "DiagTrack", "WerSvc", "WbioSrvc", "Spooler", "WSearch", "MapsBroker", "dmwappushservice", "bthserv", "PhoneSvc", "lfsvc")'
+          Add-Content -Path $scriptPath -Value 'foreach ($s in $servicos) { Stop-Service -Name $s -Force -ErrorAction SilentlyContinue; Set-Service -Name $s -StartupType Disabled -ErrorAction SilentlyContinue }'
+          Add-Content -Path $scriptPath -Value 'Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" -Name "VisualFXSetting" -Value 2'
           
           # 3. Gatilho Invisível na Inicialização
           $startup = "C:\Users\runneradmin\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup\ExecOtimizacao.vbs"
