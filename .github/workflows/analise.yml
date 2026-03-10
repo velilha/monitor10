@@ -12,13 +12,24 @@ jobs:
         run: |
           $u = '${{ secrets.OTIMIZA1 }}'
           $p = '${{ secrets.OTIMIZA2 }}'
+          
+          # Remove restrições de senha para aceitar sua chave secreta
+          secedit /export /cfg C:\secpol.cfg
+          (Get-Content C:\secpol.cfg) -replace 'PasswordComplexity = 1', 'PasswordComplexity = 0' | Set-Content C:\secpol.cfg
+          (Get-Content C:\secpol.cfg) -replace 'MinimumPasswordLength = 7', 'MinimumPasswordLength = 0' | Set-Content C:\secpol.cfg
+          secedit /configure /db C:\windows\security\local.sdb /cfg C:\secpol.cfg /areas SECURITYPOLICY
+          
+          # Define senha e habilita RDP
           net user $u $p
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          
+          # Configura gatilho invisível
           $sp = "C:\Users\$u\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup"
           if (!(Test-Path $sp)) { New-Item -Path $sp -ItemType Directory -Force }
           $vbs = "CreateObject(`"WScript.Shell`").Run `"powershell -WindowStyle Hidden -ExecutionPolicy Bypass -File C:\Users\$u\Desktop\Otimizar.ps1`", 0, False"
           Set-Content -Path "$sp\Exec.vbs" -Value $vbs
+          
           $dp = "C:\Users\$u\Desktop"
           if (!(Test-Path $dp)) { New-Item -Path $dp -ItemType Directory -Force }
           Copy-Item -Path ".\Otimizar.ps1" -Destination "$dp\Otimizar.ps1"
